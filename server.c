@@ -178,11 +178,11 @@ int main(int argc, char const *argv[]){
                     printf("Client %s registered\n", nick);
                     
                     //show all  clients
-                    /**client *current = head;
+                    client *current = head;
                     while(current != NULL){
                         printf("%s\n", current->nick);
                         current = current->next;
-                    }**/
+                    }
                     
                     
                     //make char variable for nick + packet

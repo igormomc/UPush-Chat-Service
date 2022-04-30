@@ -13,7 +13,8 @@
 #include "send_packet.c"
 
 #define PORT "3490"
-#define MAXDATASIZE 100
+#define MAXDATASIZE 1024
+
 
 
 //IPv4, IPv6
@@ -100,9 +101,14 @@ int main(int argc, char const *argv[])
     memcpy(&server_addr, servinfo->ai_addr, servinfo->ai_addrlen);
 
     inet_ntop(AF_INET, get_in_addr((struct sockaddr *)&server_addr), s, INET_ADDRSTRLEN);
-    printf("client: connecting to %s\n", s);
+    //printf("client: connecting to %s\n", s);
+    //print welcome to chat nick, server ip, server port
+    printf("Welcome to chat %s, server %s, port %s\n", argv[1], argv[2], argv[3]);
+
+
+
+
     
-    //Send input from client to server
     while(1){
         printf("Enter message: ");
         fgets(buf, MAXDATASIZE-1, stdin);
@@ -110,22 +116,15 @@ int main(int argc, char const *argv[])
         if(strcmp(buf, "exit") == 0){
             break;
         }
-        //send message to server with send_packet function
+        //Not allowed to send empty messages, so if the user enters an empty message, the client will not send the message
+        //This is normal in the real world, FB, Whatsapp, Snapchat, etc.
+        if(strlen(buf) == 0){
+            continue;
+        }
         send_packet(sockfd, buf, strlen(buf), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
     }
 
-    //send_packet(sockfd, buffer, strlen(buffer)+1, 0, (struct sockaddr *) &server_addr, INET_ADDRSTRLEN);
-
-    //send_packet(sockfd, buffer, strlen(buffer), 0, &server_addr, addrlen);
-
-
-
-    
-    //print loss probability
-    //printf("Loss probability: %f\n", loss_probability);
-    
-    // Create and send out open message to the server so it knows our username and we are identified as a connected client
-    
+        
     if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
         perror("recv");
         exit(1);
