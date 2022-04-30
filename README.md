@@ -7,26 +7,32 @@ I hver av seksjonene vil jeg Gå gjennom punktvis hvilke valg jeg har tatt og hv
 ## Server
 * Les parametere fra kommandolinjen og sett tapssannsynlighet ved å kalle
 set_loss_probability()
-  * test
+  * tekst
   * Etter å ha lest "Man Pages" Så fant jeg ut at man skal kalle på srand48() funksjonen før man kaller på drand48() funksjonen. Derfor kaller jeg på srand48() funksjonen rett før jeg kaller på set_loss_probability(), slik at den skal bli satt korrekt. 
 <br />
 
 * Lag datastrukturer for registrerte klienter
+  * Lenket liste
 
 <br />
 
 * Lag en socket og prøv å sende registrerings- og oppslagsmeldinger ved hjelp av Netcat
 (bare for å se at mottaket fungerer)
+  * brukte ikke ntoi, og ipv4
 
 <br />
 
 * Implementer registrering. Legg til informasjon i datastrukturen som svar på
 registreringsmeldinger.
+  * funker bra
+
 
 <br />
 
 * Implementer oppslag. Svar på oppslag ved hjelp av datastrukturen og informasjonen i
 forespørselen.
+  * funker bra
+
 
 <br />
 
@@ -56,5 +62,7 @@ set_loss_probability().
 ## Timeout
 
 ## Heartbeat
+* Implementer på serveren og test med Netcat
+  * Flott
 
 ## Blocking
