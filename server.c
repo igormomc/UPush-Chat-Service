@@ -26,7 +26,9 @@ typedef struct client {
         char nick[20]; // nick name of the client will be stored here and can not be longer than 20 characters
         struct client *next; // pointer to the next client
     } client;
+
 client *head = NULL;
+
 int main(int argc, char const *argv[]){
     int rc;
     int sockfd;
@@ -47,6 +49,7 @@ int main(int argc, char const *argv[]){
     fri.ai_family = AF_UNSPEC; // use IPv4 or IPv6
     fri.ai_socktype = SOCK_DGRAM; // UDP
     fri.ai_flags = AI_PASSIVE; // This is for binding to all interfaces
+    //allow multiple clients to connect to the server
     
     if((rc = getaddrinfo(NULL, argv[1], &fri, &servinfo)) != 0){ //argv[1] is the port
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rc));
@@ -179,6 +182,7 @@ int main(int argc, char const *argv[]){
                     
                     //show all  clients
                     client *current = head;
+                    printf("here is the list of clients\n");
                     while(current != NULL){
                         printf("%s\n", current->nick);
                         current = current->next;
