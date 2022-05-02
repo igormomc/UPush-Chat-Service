@@ -14,7 +14,7 @@
 #include "send_packet.c"
 
 #define PORT "3490" 
-#define MAXDATASIZE 1024 // max number of bytes we can get at once
+#define MAXDATASIZE 1400 // max number of bytes we can get at once
 //to make more client to be able to connect to the server at once we need to use a queue to store the client socket 
 
 //make random  port number bewtween 1024 and 65535 in char
@@ -65,6 +65,10 @@ int main(int argc, char const *argv[])
     struct addrinfo fri, *servinfo, *p;
     int rv;
     char s[INET6_ADDRSTRLEN];
+    //get clients adress length
+    socklen_t addr_len;
+
+
 
     if(argc != 6){
             printf("Usage: %s <nick> <server_ip> <port> <timeout> <loss_probability>\n", argv[0]);
@@ -169,6 +173,8 @@ int main(int argc, char const *argv[])
     tv.tv_usec = 0;
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
+    
+
 
     //print out messege received from server
     //printf("%s\n", buf);
@@ -181,45 +187,89 @@ int main(int argc, char const *argv[])
     **/
 
     //fd_set for select
-    fd_set readfds;
-    printf("Enter message: ");
-
-    
-    while(1){
-        FD_ZERO(&readfds);
-        FD_SET(sockfd, &readfds);
-        FD_SET(STDIN_FILENO, &readfds);
-        //select
-        if(select(sockfd+1, &readfds, NULL, NULL, NULL) == -1){
-            perror("timeout...");
-            exit(EXIT_FAILURE);
-        }
-        //check if there is messege from STDIN_FILENO
-        if(FD_ISSET(STDIN_FILENO, &readfds)){
-            //send message to server
-            //reaf the message from STDIN_FILENO
-            fgets(buf, MAXDATASIZE-1, stdin);
-            buf[strlen(buf)-1] = '\0';
-            //if the message is exit, exit
-            if(strcmp(buf, "exit") == 0){
-                break;
+    fd_set readfds; 
+        printf("Registation Succsessfull, %s\n", nick);
+        while(1){
+            //print register message
+            FD_ZERO(&readfds);
+            FD_SET(sockfd, &readfds);
+            FD_SET(STDIN_FILENO, &readfds);
+            //select
+            if(select(sockfd+1, &readfds, NULL, NULL, NULL) == -1){
+                perror("timeout...");
+                exit(EXIT_FAILURE);
             }
+            //check if there is messege from STDIN_FILENO
+            if(FD_ISSET(STDIN_FILENO, &readfds)){
+                //send message to server
+                //reaf the message from STDIN_FILENO
+                fgets(buf, MAXDATASIZE-1, stdin);
+                buf[strlen(buf)-1] = '\0';
+                //if the message is exit, exit
+                if(strcmp(buf, "exit") == 0){
+                    break;
+                }
 
-            if(strlen(buf) == 0){
-            continue;
-            }
-
-            if(strlen(buf) > MAXDATASIZE-1){
-                printf("To long message\n");
-                buf[MAXDATASIZE-1] = '\0';
+                if(strlen(buf) == 0){
                 continue;
+                }
+
+                if(strlen(buf) > MAXDATASIZE-1){
+                    printf("To long message\n");
+                    buf[MAXDATASIZE-1] = '\0';
+                    continue;
+                }
+
+                char *nickTo = strtok(buf, " ");
+                char *message = strtok(NULL, "\0");
+            
+                int isCorrectFormat = 1;
+                int correctSendingMSGFormat = 0;
+                char *nickNameFrom = NULL;
+
+                if(nickTo != NULL && nickTo[0] == '@' && strlen(nickTo) > 1 && message != NULL){
+                        correctSendingMSGFormat = 1;
+                        nickNameFrom = strtok(nickTo, "@");
+                }
+
+                if(correctSendingMSGFormat == 1){
+                    if(!(strlen(nick) < 1 || strlen(nick) > 20 || strchr(nick, ' ') != NULL || strchr(nick, '\t') != NULL || strchr(nick, '\n') != NULL)){
+                        char messageToSend[MAXDATASIZE];
+                        strcpy(messageToSend, "PKT 0 LOOKUP ");
+                        strcat(messageToSend, nickNameFrom);
+                        send_packet(sockfd, messageToSend, strlen(messageToSend),0, (struct sockaddr *)&server_addr, sizeof(server_addr)); 
+
+                        //set timeout for recvfrom
+                        struct timeval tv;
+                        tv.tv_sec = timeout;
+                        tv.tv_usec = 0;
+                        setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
+                        //receive message from server
+                        int numbytes = recvfrom(sockfd, buf, MAXDATASIZE-1, 0, (struct sockaddr *)&server_addr, &addr_len);
+                        if(numbytes == -1){
+                            perror("recvfrom");
+                            exit(EXIT_FAILURE);
+                        }
+                        buf[numbytes] = '\0';
+                        printf("%s\n", buf);
+
+                        if(strstr(buf, "NOT FOUND") != NULL){
+                            //Print out that client doesn't exist in nick-cache
+                            printf("Client %s does not exist on the server \n", nickNameFrom);
+                        }
+                    }
+
+                }
+
+           
+
+
+                //if the message is empty, print error message and continue
+                send_packet(sockfd, buf, strlen(buf),0, (struct sockaddr *)&server_addr, sizeof(server_addr));
             }
-            //if the message is empty, print error message and continue
-            send_packet(sockfd, buf, strlen(buf),0, (struct sockaddr *)&server_addr, sizeof(server_addr));
-        }
-        //Not allowed to send empty messages, so if the user enters an empty message, the client will not send the message
-        //This is normal in the real world, FB, Whatsapp, Snapchat, etc.
-        
+            //Not allowed to send empty messages, so if the user enters an empty message, the client will not send the message
+            //This is normal in the real world, FB, Whatsapp, Snapchat, etc.
     }
 
         
