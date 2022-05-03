@@ -207,6 +207,9 @@ int main(int argc, char const *argv[])
                 buf[strlen(buf)-1] = '\0';
                 //if the message is exit, exit
                 if(strcmp(buf, "exit") == 0){
+                    printf("Exiting The server, Good bye!\n");
+                    //Maybe free the memory here???
+                    close(sockfd);
                     break;
                 }
 
@@ -222,7 +225,23 @@ int main(int argc, char const *argv[])
 
                 char *nickTo = strtok(buf, " ");
                 char *message = strtok(NULL, "\0");
-            
+                if(nickTo == NULL || message == NULL){
+                    printf("Invalid message\n");
+                    continue;
+                }
+                if(strlen(nickTo) > 20){
+                    printf("Nick must be between 1 and 20 characters and can not contain space, tab, or return\n");
+                    continue;
+                }
+                //if nickTo is not ascii character, print error message and exit
+                for(int i = 0; i < strlen(nickTo); i++){
+                    if(!(nickTo[i] >= 'a' && nickTo[i] <= 'z') && !(nickTo[i] >= 'A' && nickTo[i] <= 'Z') && !(nickTo[i] >= '0' && nickTo[i] <= '9')){
+                        printf("Nick can only contain ascii characters\n");
+                        continue;
+                    }
+                }
+
+                //C does not have True/False boolean as in example Python, so I use 1/0 instead    
                 int isCorrectFormat = 1;
                 int correctSendingMSGFormat = 0;
                 char *nickNameFrom = NULL;
@@ -256,7 +275,34 @@ int main(int argc, char const *argv[])
 
                         if(strstr(buf, "NOT FOUND") != NULL){
                             //Print out that client doesn't exist in nick-cache
-                            printf("Client %s does not exist on the server \n", nickNameFrom);
+                            printf("No Client with name %s On this Server... Maybe he has not Registered Yet or wrong server? \n", nickNameFrom);
+                        }
+                        else{
+                            //the client is in the server so we can send the message
+                            //we need to store some information about the client
+                            //nickname, ip, port
+                            char *splitBuff[MAXDATASIZE];
+                            char *f = strtok(buf, " ");
+                            int i = 0;
+                            while(f != NULL){
+                                splitBuff[i] = f;
+                                f = strtok(NULL, " ");
+                                i++;
+                            }
+                             //Get nickname, Ip-address and Port from the splitBuffer array “ACK number NICK nick IP address PORT port”
+                            struct client new_client;
+                            char *nickName = splitBuff[3];
+                            char *ipAddress = splitBuff[5];
+                            char *port = splitBuff[7];
+                            strcpy(new_client.nick, nickName);
+                            int clientFound = 0;
+                            struct client *foundClientStruct;
+
+                          
+
+
+                        //CHECK of ipv4 or ipv6
+
                         }
                     }
 
