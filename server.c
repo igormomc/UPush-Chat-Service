@@ -203,6 +203,8 @@ int main(int argc, char const *argv[]){
                     split = strtok(NULL, splitat);
                     char *nick = malloc(strlen(split)+1);
                     strcpy(nick, split); 
+                    //print nick 
+                    printf("DETTE ER NICK: %s\n", nick);
 
                     //look for nick in list
                     client *current = head;
@@ -219,6 +221,9 @@ int main(int argc, char const *argv[]){
                                 inet_ntop(AF_INET6, &s->sin6_addr, address, INET6_ADDRSTRLEN); //convert the address to a string
                                 sprintf(port, "%d", ntohs(s->sin6_port)); //convert the port to a string
                             }
+                            //print out nick
+                            printf("IGJEN NICK: s\n", nick);
+
 
                             //make char variable for nick + address + port + tekst
                             char ack[11 + strlen(nick) + strlen(address) + strlen(port)];
