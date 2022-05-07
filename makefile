@@ -17,13 +17,13 @@ all: compile
 compile:client server
 
 client: $(source)client.c
-	$(cc) $(flags) $(clientLibraries) $(source)client.c -o $(clientOut)
+	$(cc) $(flags) -g $(clientLibraries) $(source)client.c -o $(clientOut)
 
 server: $(source)server.c
 	$(cc) $(flags) server.c -o $(serverOut)
 
 clean:
-	rm $(serverOut) rm $(clientOut)
+	rm $(serverOut) $(clientOut)
 
 format:
 	indent $(files) $(flagsFormat)
