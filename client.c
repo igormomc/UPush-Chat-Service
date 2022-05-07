@@ -44,12 +44,14 @@ void get_port(char *buf, size_t buflen, struct sockaddr_storage addr)
     if (addr.ss_family == AF_INET)
     {
         sprintf(buf, "%d", ntohs(((struct sockaddr_in *)&addr)->sin_port));
+        //add the port number to the struct
     }
     else
     {
         sprintf(buf, "%d", ntohs(((struct sockaddr_in6 *)&addr)->sin6_port));
     }
 }
+
 
 // IPv4, IPv6
 void *get_in_addr(struct sockaddr *sa)
@@ -167,8 +169,9 @@ int main(int argc, char const *argv[])
     struct addrinfo fri, *servinfo, *p, *clientinfo;
     int rv;
     char s[INET6_ADDRSTRLEN];
-    // get clients adress length
-    socklen_t addr_len;
+    char *nicknameFromMessage;
+
+    memset(buf, 0, MAXDATASIZE);
 
     if (argc != 6)
     {
@@ -270,6 +273,12 @@ int main(int argc, char const *argv[])
 
     sprintf(send_message, "PKT %d REG %s", number, argv[1]);
     send_packet(sockfd, send_message, strlen(send_message), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    // Receive the message from the server
+    if ((numbytes = recvfrom(sockfd, buf, MAXDATASIZE, 0, NULL, NULL)) == -1)
+    {
+        perror("recvfrom");
+        exit(1);
+    }
     free(send_message);
 
     // set timeout for recvfrom
@@ -309,18 +318,17 @@ int main(int argc, char const *argv[])
         int rc;
         if (FD_ISSET(sockfd, &readfds))
         {
-            perror("PRE SOCK START");
             rc = recvfrom(sockfd, buf, MAXDATASIZE, 0, (struct sockaddr *)&client_addr, &client_addr_len);
             buf[rc] = '\0';
-            printf("%s", buf);
-            perror("POST SOCK START");
+            //print out message received from server
+            printf("%s\n", buf);
         }
         // check if there is messege from STDIN_FILENO
         if (FD_ISSET(STDIN_FILENO, &readfds))
         {
             // clean buffer
             memset(buf, 0, MAXDATASIZE);
-            perror("STDIN START");
+            nicknameFromMessage = strtok(buf, " ");
             // send message to server
             // reaf the message from STDIN_FILENO
             fgets(buf, MAXDATASIZE - 1, stdin);
@@ -331,6 +339,7 @@ int main(int argc, char const *argv[])
                 printf("Exiting The server, Good bye!\n");
                 // Maybe free the memory here???
                 close(sockfd);
+                free(nicknameFromMessage);
                 break;
             }
 
@@ -347,10 +356,10 @@ int main(int argc, char const *argv[])
             }
 
             // We find the first word in the message, find the space after the first word and make varaibles
-            char *toNick = strtok(buf, " ");
-            char *theMessage = strtok(NULL, "\0");
+            char *toNick;
+            toNick = strtok(buf, " ");
+            char *theMessage = strdup(strtok(NULL, "\0"));
             int correctMessageFormat = 0;
-            char *nicknameFromMessage = NULL;
 
             if (toNick != NULL && toNick[0] == '@' && strlen(toNick) > 1)
             {
@@ -380,16 +389,15 @@ int main(int argc, char const *argv[])
                     // function from above to check if client is in the lenklist, if not we cant send message to the Nick
                     if (checkClientExistence(nicknameFromMessage) == 0)
                     {
-                        perror("before lala");
                         printf("%s is not in nick cache! Need to lookup.\n", nicknameFromMessage);
                         char *send_message = malloc(sizeof(char) * (strlen(nicknameFromMessage) + 10));
                         sprintf(send_message, "PKT 0 LOOKUP %s", nicknameFromMessage);
 
-                        perror("send_packet before");
                         // TODO: POSSIBLE BUG MAYBE CHANGE sizeof(server_addr)); IPv6 ELLER IPv4
                         int sent_bytes = send_packet(sockfd, send_message, strlen(send_message) + 1, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
                         fprintf(stderr, "Sent: %d\n", sent_bytes);
                         perror("send_packet");
+                        memset(buf, 0, MAXDATASIZE);
                         int numbytes = recvfrom(sockfd, buf, MAXDATASIZE - 1, 0, NULL, NULL);
                         buf[numbytes] = '\0';
                         printf("%s\n", buf);
@@ -413,15 +421,10 @@ int main(int argc, char const *argv[])
                                 i++;
                             }
 
-                            for (int i = 0; i < 7; i++)
-                            {
-                                printf("WHAT IN THE BUFFERSPLIT: %s\n", splitBuffer[i]);
-                            }
-
+                        
                             char *nickname = splitBuffer[3];
                             char *ip = splitBuffer[4];
                             char *port = splitBuffer[6];
-                            printf("NICKNAME: %s IP: %s PORT: %s\n", nickname, ip, port);
 
                             struct sockaddr_storage clientAddress;
 
@@ -435,36 +438,22 @@ int main(int argc, char const *argv[])
                                 return EXIT_FAILURE;
                             }
 
-                            if (strchr(ip, ':'))
-                            {
-                                // add port to ipv6 address
-                                struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)clientinfo->ai_addr;
-                            }
-                            else
-                            {
-                                // add port to ipv4 address
-                                struct sockaddr_in *ipv4 = (struct sockaddr_in *)clientinfo->ai_addr;
-                            }
-
                             memset(&clientAddress, 0, sizeof(struct sockaddr_storage));
                             memcpy(&clientAddress, clientinfo->ai_addr, clientinfo->ai_addrlen);
+                            clientAddress.ss_family = clientinfo->ai_family;
+                            
 
                             char adderBuffer[INET6_ADDRSTRLEN];
                             get_address(adderBuffer, INET6_ADDRSTRLEN, clientAddress);
-                            printf("Client address info: \n");
-                            printf("Family: %d\n", clientAddress.ss_family);
-                            printf("Port: %hu\n", ntohs(((struct sockaddr_in6 *)&clientAddress)->sin6_port));
-                            printf("Address: %s\n", adderBuffer);
 
                             add_client(nickname, clientAddress);
-                            // Send the message to the client
-                            send_packet(sockfd, theMessage, strlen(theMessage) + 1, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
+                          
 
+                            sprintf(mess, "PKT 0 FROM %s TO %s MSG %s", nick, nickname, theMessage);
 
-
-                                                        //print out the message
-                            printf("%s\n", theMessage);
-                           
+                            send_packet(sockfd, mess, strlen(mess) + 1, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
+                            //get address
+                            
                         }
                     }
                     else
@@ -476,21 +465,35 @@ int main(int argc, char const *argv[])
                         {
                             if (strcmp(nicknameFromMessage, currentClient->nick) == 0)
                             {
-                                printf("{\n");
-                                printf("Client %s is in the linked-list\n", currentClient->nick);
+                                struct sockaddr_storage clientSend;
+                                //printf("{\n");
+                                //printf("Client %s is in the linked-list\n", currentClient->nick);
                                 // get ip address from currentClient
                                 char adderBuffer[INET6_ADDRSTRLEN];
                                 get_address(adderBuffer, INET6_ADDRSTRLEN, *currentClient->address);
-                                printf("IP: %s\n", adderBuffer);
+                                //printf("IP: %s\n", adderBuffer);
                                 char portBuffer[INET6_ADDRSTRLEN];
                                 get_port(portBuffer, INET6_ADDRSTRLEN, *currentClient->address);
-                                printf("IP: %s\n", adderBuffer);
-                                printf("PORT: %s\n", portBuffer);
-                                printf("}\n");
-                                printf("}\n");
-                                // print out the message that we are sending
-                                printf("Sending message to %s: %s\n", nicknameFromMessage, theMessage);
+                                //add port and ip to clientSend struct
+                                memset(&clientSend, 0, sizeof(struct sockaddr_storage));
+                                memcpy(&clientSend, clientinfo->ai_addr, clientinfo->ai_addrlen);
+                                clientSend.ss_family = clientinfo->ai_family;
+                                //memset and memcpy the port
+                            
+                                //printf("IP: %s\n", adderBuffer);
+                                //printf("PORT: %s\n", portBuffer);
+                                //print out port from clientSend:
+                                //printf("PORT: %hu\n", ntohs(((struct sockaddr_in6 *)&clientSend)->sin6_port));
 
+                                //printf("}\n");
+                                //printf("}\n");
+                                // print out the message that we are sending
+                                //printf("Sending message to %s: %s\n", nicknameFromMessage, theMessage);
+                                sprintf(mess, "PKT 0 FROM %s TO %s MSG %s", nicknameFromMessage, currentClient->nick, theMessage);
+
+                                send_packet(sockfd, mess, strlen(mess) + 1, 0, (struct sockaddr *)&clientSend, sizeof(clientSend));
+
+                                break;
                             }
                             currentClient = currentClient->next;
                         }
