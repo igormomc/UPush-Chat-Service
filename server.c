@@ -112,6 +112,11 @@ int main(int argc, char const *argv[])
         struct client *current = head;
         while (current != NULL)
         {
+            //print out current timestamp
+            printf("%s: %ld\n", current->nick, current->timestamp.tv_sec);
+            //print difftime(time(NULL), current->timestamp.tv_sec) time now - timestamp
+            printf("%s: %ld\n", current->nick, difftime(time(NULL), current->timestamp.tv_sec));
+
             // if the client is not registered for more than 30 seconds, remove it from the list
             if (difftime(time(NULL), current->timestamp.tv_sec) > 30)
             {
