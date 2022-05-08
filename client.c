@@ -357,25 +357,27 @@ int main(int argc, char const *argv[])
             // check if incoming message has correct format
             char *wordForWord[8];
             int i = 0;
-            char *token = strtok(buf, " ");
-            while (token != NULL)
+            char *word = strtok(buf, " ");
+            while (word != NULL)
             {
                 if (i == 6)
                 {
-                    wordForWord[i] = token;
-                    token = strtok(NULL, "\0");
+                    wordForWord[i] = word;
+                    word = strtok(NULL, "\0");
                 }
                 else
                 {
-                    wordForWord[i] = token;
-                    token = strtok(NULL, " ");
+                    wordForWord[i] = word;
+                    word = strtok(NULL, " ");
                 }
                 i++;
             }
             if (strcmp(wordForWord[0], "PKT") == 0 && wordForWord[1] != NULL && strcmp(wordForWord[2], "FROM") == 0 && wordForWord[3] != NULL && strcmp(wordForWord[4], "TO") == 0 && wordForWord[5] != NULL && strcmp(wordForWord[6], "MSG") == 0)
             {
-                //print out format: fra_nick: text
-                printf("%s: %s\n", wordForWord[3], wordForWord[7]);
+                if (strcmp(wordForWord[5], nick) == 0)
+                {
+                    printf("%s: %s\n", wordForWord[3], wordForWord[7]);
+                }
             }
             else
             {
@@ -487,19 +489,19 @@ int main(int argc, char const *argv[])
                             // Print out that we are here
                             // The response has this format ACK packet_number NICK nickname IP ip_address PORT port_number
                             // Split the buffer into an array of strings using strtok using space as the delimiter
-                            char *splitBuffer[7];
+                            char *wordForWord[7];
                             int i = 0;
-                            char *token = strtok(buf, " ");
-                            while (token != NULL)
+                            char *word = strtok(buf, " ");
+                            while (word != NULL)
                             {
-                                splitBuffer[i] = token;
-                                token = strtok(NULL, " ");
+                                wordForWord[i] = word;
+                                word = strtok(NULL, " ");
                                 i++;
                             }
 
-                            char *nickname = splitBuffer[3];
-                            char *ip = splitBuffer[4];
-                            char *port = splitBuffer[6];
+                            char *nickname = wordForWord[3];
+                            char *ip = wordForWord[4];
+                            char *port = wordForWord[6];
 
                             struct sockaddr_storage clientAddress;
 

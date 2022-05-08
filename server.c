@@ -143,8 +143,8 @@ int main(int argc, char const *argv[])
                     }
                     previous->next = current;
                 }
-                // free the memory allocated for the temp client, because it is not needed anymore
                 free(temp);
+
             }
             else
             {
