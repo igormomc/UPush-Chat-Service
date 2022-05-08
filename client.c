@@ -171,7 +171,7 @@ int main(int argc, char const *argv[])
 
     // declere all variables from the command line
     strcpy(nick, argv[1]);
-    char *port = argv[3];
+    const char *port = argv[3];
     int timeout = atoi(argv[4]);
 
     float loss_probability = strtol(argv[5], NULL, 10) / 100.0f;
@@ -322,11 +322,30 @@ int main(int argc, char const *argv[])
         FD_ZERO(&readfds);
         FD_SET(sockfd, &readfds);
         FD_SET(STDIN_FILENO, &readfds);
+        // Send heartbeat to server every 10 seconds
+        struct timeval heartbeat;
+        heartbeat.tv_sec = 10;
+        heartbeat.tv_usec = 0;
 
-        // select
-        if (select(FD_SETSIZE, &readfds, NULL, NULL, 0) == -1)
+        // RETT OPP I DETTE HVIS TID
+        if (select(FD_SETSIZE, &readfds, NULL, NULL, 0) == 0)
         {
-            perror("timeout...");
+            // client has timed out, send heartbeat
+            char *send_message = malloc(sizeof(char) * (strlen(argv[1]) + 10));
+            // get random number that changes every time the client send a REGISTER message
+            srand(time(0)); // will not give random number if not calling on srand()
+            int number = rand() % 100;
+
+            // making reg message and send it to the server
+            sprintf(send_message, "PKT %d REG %s", number, argv[1]);
+            send_packet(sockfd, send_message, strlen(send_message), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+            // Receive the message from the server
+            if ((numbytes = recvfrom(sockfd, buf, MAXDATASIZE, 0, NULL, NULL)) == -1)
+            {
+                perror("recvfrom");
+                exit(1);
+            }
+            free(send_message);
             exit(EXIT_FAILURE);
         }
         int rc;
@@ -334,8 +353,34 @@ int main(int argc, char const *argv[])
         {
             rc = recvfrom(sockfd, buf, MAXDATASIZE, 0, (struct sockaddr *)&client_addr, &client_addr_len);
             buf[rc] = '\0';
-            // print out message received from server
-            printf("%s\n", buf);
+            // Correct Format: "PKT nummer FROM fra_nick TO til_nick MSG tekst"
+            // check if incoming message has correct format
+            char *wordForWord[8];
+            int i = 0;
+            char *token = strtok(buf, " ");
+            while (token != NULL)
+            {
+                if (i == 6)
+                {
+                    wordForWord[i] = token;
+                    token = strtok(NULL, "\0");
+                }
+                else
+                {
+                    wordForWord[i] = token;
+                    token = strtok(NULL, " ");
+                }
+                i++;
+            }
+            if (strcmp(wordForWord[0], "PKT") == 0 && wordForWord[1] != NULL && strcmp(wordForWord[2], "FROM") == 0 && wordForWord[3] != NULL && strcmp(wordForWord[4], "TO") == 0 && wordForWord[5] != NULL && strcmp(wordForWord[6], "MSG") == 0)
+            {
+                //print out format: fra_nick: text
+                printf("%s: %s\n", wordForWord[3], wordForWord[7]);
+            }
+            else
+            {
+                printf("Wrong sending format\n");
+            }
         }
         // check if there is messege from STDIN_FILENO
         if (FD_ISSET(STDIN_FILENO, &readfds))
@@ -378,7 +423,7 @@ int main(int argc, char const *argv[])
             {
                 theMessage = strdup(theMessageCopy);
             }
-            //hack to fix a bug where a empty message is sent
+            // hack to fix a bug where a empty message is sent
             else
             {
                 theMessage = strdup("");
@@ -397,7 +442,7 @@ int main(int argc, char const *argv[])
                         break;
                     }
                 }
-                if (theMessage != NULL || theMessage != "")
+                if (theMessage != NULL)
                 {
                     correctMessageFormat = 1;
                     nickToMess = strdup(toNick + 1);
@@ -419,8 +464,10 @@ int main(int argc, char const *argv[])
                     if (isClientInList(nickToMess) == 0)
                     {
                         printf("%s is not in nick cache! Need to lookup.\n", nickToMess);
+                        srand(time(0)); // will not give random number if not calling on srand()
+                        int number = rand() % 100;
                         char *send_message = malloc(sizeof(char) * (strlen(nickToMess) + 10));
-                        sprintf(send_message, "PKT 0 LOOKUP %s", nickToMess);
+                        sprintf(send_message, "PKT %d LOOKUP %s", number, nickToMess);
 
                         // TODO: POSSIBLE BUG MAYBE CHANGE sizeof(server_addr)); IPv6 ELLER IPv4
                         int sent_bytes = send_packet(sockfd, send_message, strlen(send_message) + 1, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
@@ -474,8 +521,10 @@ int main(int argc, char const *argv[])
                             get_address(adderBuffer, INET6_ADDRSTRLEN, clientAddress);
 
                             add_client_to_list(nickname, clientAddress);
+                            srand(time(0)); // will not give random number if not calling on srand()
+                            int number = rand() % 100;
 
-                            sprintf(mess, "PKT 0 FROM %s TO %s MSG %s", nick, nickname, theMessage);
+                            sprintf(mess, "PKT %d FROM %s TO %s MSG %s", number, nick, nickname, theMessage);
 
                             send_packet(sockfd, mess, strlen(mess) + 1, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
                             // get address
@@ -499,7 +548,10 @@ int main(int argc, char const *argv[])
                                 memcpy(&clientSend, clientinfo->ai_addr, clientinfo->ai_addrlen);
                                 clientSend.ss_family = clientinfo->ai_family;
 
-                                sprintf(mess, "PKT 0 FROM %s TO %s MSG %s", nick, nickToMess, theMessage);
+                                srand(time(0)); // will not give random number if not calling on srand()
+                                int number = rand() % 100;
+
+                                sprintf(mess, "PKT %d FROM %s TO %s MSG %s", number, nick, nickToMess, theMessage);
                                 send_packet(sockfd, mess, strlen(mess) + 1, 0, (struct sockaddr *)&clientSend, sizeof(clientSend));
                                 break;
                             }

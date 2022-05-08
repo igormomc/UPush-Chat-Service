@@ -36,7 +36,10 @@ int main(int argc, char const *argv[])
     struct addrinfo fri, *servinfo, *p;
     fd_set fds;
     struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
     char buf[BUF_SIZE];
+    struct timeval current_time;
 
     if (argc < 3)
     {
@@ -105,22 +108,26 @@ int main(int argc, char const *argv[])
         FD_ZERO(&fds);
         FD_SET(sockfd, &fds);
         FD_SET(STDIN_FILENO, &fds);
-        timeout.tv_sec = 1;
-        rc = select(FD_SETSIZE, &fds, NULL, NULL, 0);
+        rc = select(FD_SETSIZE, &fds, NULL, NULL, &timeout);
         check_error(rc, "select");
+
+       
+
 
         struct client *current = head;
         while (current != NULL)
         {
-            //print out current timestamp
-            printf("%s: %ld\n", current->nick, current->timestamp.tv_sec);
-            //print difftime(time(NULL), current->timestamp.tv_sec) time now - timestamp
-            printf("%s: %ld\n", current->nick, difftime(time(NULL), current->timestamp.tv_sec));
+            //print out diff from current time to the timestamp of the client
+            gettimeofday(&current_time, NULL);
+            long diff = current_time.tv_sec - current->timestamp.tv_sec;
+            printf("%s is %ld seconds old\n", current->nick, diff);
 
             // if the client is not registered for more than 30 seconds, remove it from the list
-            if (difftime(time(NULL), current->timestamp.tv_sec) > 30)
+            if (diff > 30)
             {
                 printf("%s has been removed, Longer then 30 sec since Registration\n", current->nick);
+                printf("Client %s is not registered for more than 30 seconds, removing from list\n", current->nick);
+
                 struct client *temp = current;
                 current = current->next;
                 if (temp == head)
@@ -197,6 +204,7 @@ int main(int argc, char const *argv[])
                                 previous->next = currentcheck;
                             }
                             free(temp);
+                            
                         }
                         else
                         {
