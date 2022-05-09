@@ -30,7 +30,7 @@ registreringsmeldinger.
 
 * Implementer oppslag. Svar på oppslag ved hjelp av datastrukturen og informasjonen i
 forespørselen.
-  * funker bra
+  * Fungerer som den skal. Skriver man i formatet "PKT nummer LOOKUP nick" til serven så vil serveren lete gjennom lenkelisten og se om man finner en nick med det navnet. Om man finner det så returnerer serveren nicken, IP-adressen og porten til klienten som sendte oppslagsmeldingen. Hvis ikke så returnerer den at den ikke fant noen med det navnet.
 
 
 <br />
