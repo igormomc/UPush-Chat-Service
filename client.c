@@ -12,7 +12,7 @@
 #include <time.h>
 #include <ctype.h>
 
-#include "send_packet.c"
+#include "send_packet.h"
 
 #define PORT "3490"
 #define MAXDATASIZE 1400 // max number of bytes we can get at once
@@ -203,7 +203,7 @@ int main(int argc, char const *argv[])
     fri.ai_family = AF_INET6; // this handles both ipv4 and ipv6 addresses
     fri.ai_socktype = SOCK_DGRAM;
 
-    // get the address info of the server
+
     if ((rv = getaddrinfo(NULL, "0", &fri, &servinfo)) != 0)
     {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
@@ -220,6 +220,7 @@ int main(int argc, char const *argv[])
         }
         break;
     }
+    freeaddrinfo(servinfo); 
 
     // if we didn't get a socket, print error message and exit
     if (p == NULL)
@@ -241,13 +242,14 @@ int main(int argc, char const *argv[])
         printf("Timeout must be between 1 and 60\n");
         return EXIT_SUCCESS;
     }
-
-    freeaddrinfo(servinfo);
+    
     srand48(time(0)); // have to call strand48 before using drand48, otherwise it will always return wrong, read it in mane pages
+    //setting loss_probability
     set_loss_probability(loss_probability);
 
     struct sockaddr_storage server_addr;
 
+    //SOCK_DGRAM is used for UDP sockets
     memset(&fri, 0, sizeof fri);
     fri.ai_family = AF_UNSPEC;
     fri.ai_socktype = SOCK_DGRAM;
@@ -259,9 +261,14 @@ int main(int argc, char const *argv[])
         return EXIT_FAILURE;
     }
 
+
+
+    //here we are getting the address info of the server and storing it in the server_addr struct so we can use it later
     memset(&server_addr, 0, sizeof(struct sockaddr_storage));
-    memcpy(&server_addr, servinfo->ai_addr, servinfo->ai_addrlen);                          // copy the address info of the server to the server_addr
+    memcpy(&server_addr, servinfo->ai_addr, servinfo->ai_addrlen);                    
+    freeaddrinfo(servinfo);      // copy the address info of the server to the server_addr
     inet_ntop(AF_INET6, get_in_addr((struct sockaddr *)&server_addr), s, INET6_ADDRSTRLEN); // get the ip address of the server
+    
 
     printf("Welcome to chat %s, server %s, port %s\n", argv[1], argv[2], argv[3]);
     // print cleints port
@@ -286,7 +293,7 @@ int main(int argc, char const *argv[])
     tv.tv_sec = timeout;
     tv.tv_usec = 0;
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv);
-
+    
     /**
      while(1){
          sleep(10);
@@ -317,6 +324,7 @@ int main(int argc, char const *argv[])
     struct sockaddr_storage client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
     printf("Registation Succsessfull, %s\n", nick);
+    int selectReturn;
     while (1)
     {
         FD_ZERO(&readfds);
@@ -327,12 +335,13 @@ int main(int argc, char const *argv[])
         heartbeat.tv_sec = 10;
         heartbeat.tv_usec = 0;
 
-        // RETT OPP I DETTE HVIS TID
-        if (select(FD_SETSIZE, &readfds, NULL, NULL, 0) == 0)
+        selectReturn = select(FD_SETSIZE, &readfds, NULL, NULL, &heartbeat);
+
+        if (selectReturn == 0)
         {
-            // client has timed out, send heartbeat
             char *send_message = malloc(sizeof(char) * (strlen(argv[1]) + 10));
             // get random number that changes every time the client send a REGISTER message
+
             srand(time(0)); // will not give random number if not calling on srand()
             int number = rand() % 100;
 
@@ -340,13 +349,18 @@ int main(int argc, char const *argv[])
             sprintf(send_message, "PKT %d REG %s", number, argv[1]);
             send_packet(sockfd, send_message, strlen(send_message), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
             // Receive the message from the server
+
             if ((numbytes = recvfrom(sockfd, buf, MAXDATASIZE, 0, NULL, NULL)) == -1)
             {
                 perror("recvfrom");
                 exit(1);
             }
             free(send_message);
-            exit(EXIT_FAILURE);
+            // set timeout for recvfrom
+            struct timeval tv;
+            tv.tv_sec = timeout;
+            tv.tv_usec = 0;
+            setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv);
         }
         int rc;
         if (FD_ISSET(sockfd, &readfds))
@@ -372,29 +386,32 @@ int main(int argc, char const *argv[])
                 }
                 i++;
             }
+            //check if the format is correct: PKT nummer FROM fra_nick TO til_nick MSG tekst
             if (strcmp(wordForWord[0], "PKT") == 0 && wordForWord[1] != NULL && strcmp(wordForWord[2], "FROM") == 0 && wordForWord[3] != NULL && strcmp(wordForWord[4], "TO") == 0 && wordForWord[5] != NULL && strcmp(wordForWord[6], "MSG") == 0)
-            {
+            {   
+                //check if to_nick is the same as the client's nick
                 if (strcmp(wordForWord[5], nick) == 0)
                 {
                     printf("%s: %s\n", wordForWord[3], wordForWord[7]);
                 }
+                else{
+                    printf("Wrong Format!");
+                }
+                
             }
-            else
-            {
-                printf("Wrong sending format\n");
-            }
+            
         }
         // check if there is messege from STDIN_FILENO
         if (FD_ISSET(STDIN_FILENO, &readfds))
         {
-
+            // memset the buffer to 0 to avoid garbage data
             memset(buf, 0, MAXDATASIZE);
             nickToMess = strtok(buf, " ");
 
             fgets(buf, MAXDATASIZE - 1, stdin);
             buf[strlen(buf) - 1] = '\0';
-            // if the message is exit, exit
-            if (strcmp(buf, "exit") == 0)
+            // if the message is QUIT, exit everyting
+            if (strcmp(buf, "QUIT") == 0)
             {
                 printf("Exiting The server, Good bye!\n");
                 // Maybe free more memory here???
@@ -408,7 +425,7 @@ int main(int argc, char const *argv[])
                 printf("Not allowed with empty message\n");
                 continue;
             }
-
+            //if buf length is too long print error
             if (strlen(buf) > MAXDATASIZE - 1)
             {
                 printf("To long message\n");
@@ -416,12 +433,12 @@ int main(int argc, char const *argv[])
                 continue;
             }
 
-            // We find the first word in the message, find the space after the first word and make varaibles
-            char *toNick;
+            //Getting the message and the nick to send it to
+            char *toNick; // the nick that the message is going to
             toNick = strtok(buf, " ");
             char *theMessageCopy = strtok(NULL, "\0");
-            char *theMessage = NULL;
-            if (theMessageCopy != NULL)
+            char *theMessage = NULL; // the message
+            if (theMessageCopy != NULL) 
             {
                 theMessage = strdup(theMessageCopy);
             }
@@ -432,11 +449,13 @@ int main(int argc, char const *argv[])
             }
             int correctMessageFormat = 0;
 
+            // check if the message is correct format
             if (toNick != NULL && toNick[0] == '@' && strlen(toNick) > 1)
             {
                 // chekc that nick dose not contain ascill characters
                 for (int i = 1; i < strlen(toNick); i++)
-                {
+                {   
+                    // if the character is not ascill, we set correctMessageFormat to 1
                     if (isalpha(toNick[i]) == 0)
                     {
                         printf("Nickname can not contain special characters\n");
@@ -448,11 +467,10 @@ int main(int argc, char const *argv[])
                 {
                     correctMessageFormat = 1;
                     nickToMess = strdup(toNick + 1);
-                    printf("Nickname from message: %s\n", nickToMess);
                 }
             }
 
-            // if length of themessage is 0, set format to 0
+            // if length of themessage is 0, set format to 0 (bug fix)
             if (strlen(theMessage) == 0)
             {
                 correctMessageFormat = 0;
@@ -465,16 +483,13 @@ int main(int argc, char const *argv[])
                     // function from above to check if client is in the linklist, if not we cant send message to the Nick
                     if (isClientInList(nickToMess) == 0)
                     {
-                        printf("%s is not in nick cache! Need to lookup.\n", nickToMess);
                         srand(time(0)); // will not give random number if not calling on srand()
                         int number = rand() % 100;
                         char *send_message = malloc(sizeof(char) * (strlen(nickToMess) + 10));
                         sprintf(send_message, "PKT %d LOOKUP %s", number, nickToMess);
 
                         // TODO: POSSIBLE BUG MAYBE CHANGE sizeof(server_addr)); IPv6 ELLER IPv4
-                        int sent_bytes = send_packet(sockfd, send_message, strlen(send_message) + 1, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
-                        fprintf(stderr, "Sent: %d\n", sent_bytes);
-                        perror("send_packet");
+                        send_packet(sockfd, send_message, strlen(send_message) + 1, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
                         memset(buf, 0, MAXDATASIZE);
                         int numbytes = recvfrom(sockfd, buf, MAXDATASIZE - 1, 0, NULL, NULL);
                         buf[numbytes] = '\0';
@@ -485,10 +500,8 @@ int main(int argc, char const *argv[])
                             printf("%s is not in server\n", nickToMess);
                         }
                         else
-                        {
-                            // Print out that we are here
-                            // The response has this format ACK packet_number NICK nickname IP ip_address PORT port_number
-                            // Split the buffer into an array of strings using strtok using space as the delimiter
+                        {   
+                            //splitting the message to get the variables
                             char *wordForWord[7];
                             int i = 0;
                             char *word = strtok(buf, " ");
@@ -499,12 +512,14 @@ int main(int argc, char const *argv[])
                                 i++;
                             }
 
+                            //getting variables from the message 
                             char *nickname = wordForWord[3];
                             char *ip = wordForWord[4];
                             char *port = wordForWord[6];
 
                             struct sockaddr_storage clientAddress;
 
+                            //works for IPv4 and IPv6 addresses 
                             memset(&fri, 0, sizeof fri);
                             fri.ai_family = AF_UNSPEC;
                             fri.ai_socktype = SOCK_DGRAM;
@@ -514,6 +529,12 @@ int main(int argc, char const *argv[])
                                 fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
                                 return EXIT_FAILURE;
                             }
+                            //freegetaddrinfo
+                            
+
+
+
+
 
                             memset(&clientAddress, 0, sizeof(struct sockaddr_storage));
                             memcpy(&clientAddress, clientinfo->ai_addr, clientinfo->ai_addrlen);
@@ -525,22 +546,19 @@ int main(int argc, char const *argv[])
                             add_client_to_list(nickname, clientAddress);
                             srand(time(0)); // will not give random number if not calling on srand()
                             int number = rand() % 100;
-
                             sprintf(mess, "PKT %d FROM %s TO %s MSG %s", number, nick, nickname, theMessage);
-
                             send_packet(sockfd, mess, strlen(mess) + 1, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
-                            // get address
                         }
                     }
+                    //else we have registerd the client in the cache
                     else
                     {
-                        printf("Client is in the linked-list\n");
-
                         struct client *currentClient = head;
                         while (currentClient != NULL)
                         {
                             if (strcmp(nickToMess, currentClient->nick) == 0)
                             {
+                                //gathering the address of the client that we want to send the message to
                                 struct sockaddr_storage clientSend;
                                 char adderBuffer[INET6_ADDRSTRLEN];
                                 get_address(adderBuffer, INET6_ADDRSTRLEN, *currentClient->address);
@@ -550,27 +568,26 @@ int main(int argc, char const *argv[])
                                 memcpy(&clientSend, clientinfo->ai_addr, clientinfo->ai_addrlen);
                                 clientSend.ss_family = clientinfo->ai_family;
 
+                                //making message and sending it to the client
                                 srand(time(0)); // will not give random number if not calling on srand()
                                 int number = rand() % 100;
-
                                 sprintf(mess, "PKT %d FROM %s TO %s MSG %s", number, nick, nickToMess, theMessage);
                                 send_packet(sockfd, mess, strlen(mess) + 1, 0, (struct sockaddr *)&clientSend, sizeof(clientSend));
                                 break;
                             }
                             currentClient = currentClient->next;
                         }
-                        // send message to client in the linked-list
                     }
                 }
                 else
                 {
-                    printf("Wrong Nickname!");
+                    printf("Nickname is not correct format or maybe wrong nick\n");
                     exit(1);
                 }
             }
             else
             {
-                printf("Incorrect message format\n");
+                printf("Wrong..!\n");
             }
         }
     }
