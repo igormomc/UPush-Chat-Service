@@ -7,31 +7,30 @@ I hver av seksjonene vil jeg Gå gjennom punktvis hvilke valg jeg har tatt og hv
 ## Server
 * Les parametere fra kommandolinjen og sett tapssannsynlighet ved å kalle
 set_loss_probability()
-  * tekst
   * Etter å ha lest "Man Pages" Så fant jeg ut at man skal kalle på srand48() funksjonen før man kaller på drand48() funksjonen. Derfor kaller jeg på srand48() funksjonen rett før jeg kaller på set_loss_probability(), slik at den skal bli satt korrekt. 
 <br />
 
 * Lag datastrukturer for registrerte klienter
-  * Lenket liste
+  * Lenket liste som holder på dataen til clientene. Jeg valgte å bare bruke en "en veis" lenkeliste og ikke "to veis" fordi jeg antar at det ikke skal være så mange på denne chatt systemet og trenger ikke at den skal være lynrask.
 
 <br />
 
 * Lag en socket og prøv å sende registrerings- og oppslagsmeldinger ved hjelp av Netcat
 (bare for å se at mottaket fungerer)
-  * brukte ikke ntoi, og ipv4
+  * brukte ikke ntoi, og ipv4 her. Dette er bevist slik at jeg kan bruke både IPv4 og IPv6 adresser. 
 
 <br />
 
 * Implementer registrering. Legg til informasjon i datastrukturen som svar på
 registreringsmeldinger.
-  * funker bra
+  * Registrering fungerer som den skal. Skriver man i formatet: "PKT nummer REG nick" så registrer man Nick i serveren.
 
 
 <br />
 
 * Implementer oppslag. Svar på oppslag ved hjelp av datastrukturen og informasjonen i
 forespørselen.
-  * funker bra
+  * Fungerer som den skal. Skriver man i formatet "PKT nummer LOOKUP nick" til serven så vil serveren lete gjennom lenkelisten og se om man finner en nick med det navnet. Om man finner det så returnerer serveren nicken, IP-adressen og porten til klienten som sendte oppslagsmeldingen. Hvis ikke så returnerer den at den ikke fant noen med det navnet.
 
 
 <br />
@@ -50,14 +49,18 @@ oppslagsmeldinger.
 ## Client
 * Les parametere fra kommandolinjen og sett tapssannsynlighet ved å kalle
 set_loss_probability().
-   * test
-  * Som nevnt ovenfor i Servern, så gjelder det samme her angående set_loss_probability, Da jeg ikke kalte på srand48() fikk jeg feil probability og derfor viktig å kalle på denne før set_loss_probability().
+  * Som nevnt ovenfor i Servern, så gjelder det samme her angående set_loss_probability, Da jeg ikke kalte på srand48() fikk jeg feil probability og derfor viktig å kalle på denne før set_loss_probability(), da funket alt som det skulle.
 
 * Opprett en socket og prøv å sende noe til serveren.
-  * test
-  * På SSH-Ifi maskinene så fungerer det helt fint å sende meldinger fra client til Server. Men på Mac maskinen min så ser jeg at meldingene ikke vises på terminalen. Ingenting krasjer men får ikke sett meldingene. Etter å ha lest "Man Pages" og snakket med noen gruppelærere har jeg kommet fram til at dette er et mac problem som kanskje handler om at PF_inet og AF_inet ikke fungerer helt likt på mac og linux. Men jeg ville ikke bruke for mye tid på dette da det fungerer fint på ifi sine maskiner som er det viktigste
+  * Jeg har laget Dette slikt at det skal fungere med både IPv4 og IPv6.
+  * På SSH-Ifi maskinene så fungerer det helt fint å sende meldinger fra client til Server(Med melding mener jeg Ack, Looksups, Reg osv..). Men på Mac maskinen min så ser jeg at meldingene ikke vises på terminalen. Ingenting krasjer men får ikke sett meldingene. Etter å ha lest "Man Pages" og snakket med noen gruppelærere har jeg kommet fram til at dette er et mac problem som kanskje handler om at PF_inet og AF_inet ikke fungerer helt likt på mac og linux. Men jeg ville ikke bruke for mye tid på dette da det fungerer fint på ifi sine maskiner som er det viktigste.
 
-*
+* Implementer registrering.
+  * Registrering fungerer fint. Når en client registerer seg så blir det sendt en Registreings melding til serveren i formatet: "PKT nummer REG nick" og den blir deretter lagt til i lenkelisten. Meldingen blir laget ved hjelp av funksjonen sprintf() deretter sender vi meldingen men send_packet()
+
+* 
+
+
 
 ## Timeout
 
