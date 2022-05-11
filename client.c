@@ -21,6 +21,14 @@
 void handle_exit(int signal);
 static int sockfd = 0;
 
+typedef struct blocked_nickname
+{
+    char *nick;
+    struct client *next;
+} blocked_nickname;
+
+struct blocked_nickname *blockHead = NULL;
+
 // make random  port number bewtween 1024 and 65535 in char
 // a tought using this but i found out that putting in 0 will make the port a random port
 char *make_random_port()
@@ -132,6 +140,78 @@ void add_client_to_list(char *nick, struct sockaddr_storage *addr_storage)
         }
         current->next = new_client;
     }
+}
+
+// add nick to linkedlist of blocked nicknames
+void add_blocked_nickname(char *nick)
+{
+    remove_blocked_nickname(nick);
+    blocked_nickname *blockNick = malloc(sizeof(blocked_nickname));
+    blockNick->nick = malloc((strlen(nick) + 1) * sizeof(char));
+    strcpy(blockNick->nick, nick);
+    blockNick->next = NULL;
+
+    if (blockHead == NULL)
+    {
+        blockHead = blockNick;
+    }
+    else
+    {
+        blocked_nickname *current = blockHead;
+        while (current->next != NULL)
+        {
+            current = current->next;
+        }
+        current->next = blockNick;
+    }
+    // remove if nick is already in the list
+    // print out the blocked nicknames
+    blocked_nickname *current = blockHead;
+    while (current != NULL)
+    {
+        printf("%s\n", current->nick);
+        current = current->next;
+    }
+}
+
+void remove_blocked_nickname(char *nick)
+{
+    blocked_nickname *current = blockHead;
+    blocked_nickname *prev = NULL;
+    while (current != NULL)
+    {
+        if (strcmp(current->nick, nick) == 0)
+        {
+            if (prev == NULL)
+            {
+                blockHead = current->next;
+            }
+            else
+            {
+                prev->next = current->next;
+            }
+            free(current->nick);
+            free(current);
+            break;
+        }
+        prev = current;
+        current = current->next;
+    }
+}
+
+// is_blocked function to check if the nick is blocked
+int is_blocked(char *nick)
+{
+    blocked_nickname *current = blockHead;
+    while (current != NULL)
+    {
+        if (strcmp(current->nick, nick) == 0)
+        {
+            return 1;
+        }
+        current = current->next;
+    }
+    return 0;
 }
 
 // very standard way to check if a client is in the linked list already or not (used for the lookup)
@@ -365,7 +445,6 @@ int main(int argc, char const *argv[])
             rc = recvfrom(sockfd, buf, MAXDATASIZE, 0, (struct sockaddr *)&client_addr, &client_addr_len);
             buf[rc] = '\0';
             // Correct Format: "PKT nummer FROM fra_nick TO til_nick MSG tekst"
-            // check if incoming message has correct format
             char *wordForWord[8];
             int i = 0;
             char *word = strtok(buf, " ");
@@ -383,12 +462,15 @@ int main(int argc, char const *argv[])
                 }
                 i++;
             }
+
             // check if the format is correct: PKT nummer FROM fra_nick TO til_nick MSG tekst
             if (strcmp(wordForWord[0], "PKT") == 0 && wordForWord[1] != NULL && strcmp(wordForWord[2], "FROM") == 0 && wordForWord[3] != NULL && strcmp(wordForWord[4], "TO") == 0 && wordForWord[5] != NULL && strcmp(wordForWord[6], "MSG") == 0)
             {
                 // check if to_nick is the same as the client's nick
                 if (strcmp(wordForWord[5], nick) == 0)
                 {
+                    sprintf(send_message, "PKT %d ACK %s", atoi(wordForWord[1]), wordForWord[3]);
+                    send_packet(sockfd, send_message, strlen(send_message), 0, (struct sockaddr *)&client_addr, client_addr_len);
                     printf("%s: %s\n", wordForWord[3], wordForWord[7]);
                 }
                 else
@@ -422,6 +504,21 @@ int main(int argc, char const *argv[])
                         free(tRem);
                     }
                 }
+
+                if (blockHead != NULL)
+                {
+                    blocked_nickname *r = blockHead;
+                    while (r != NULL)
+                    {
+                        blocked_nickname *rem = r;
+                        r = r->next;
+                        free(rem->nick);
+                        free(rem);
+                    }
+                }
+
+                // loop through the blockedList and free the memory
+
                 printf("Exiting The server, Good bye!\n");
                 // Maybe free more memory here???
                 close(sockfd);
@@ -443,6 +540,8 @@ int main(int argc, char const *argv[])
                 continue;
             }
 
+            // block message into words on space
+            int blockFormat = 0;
             // Getting the message and the nick to send it to
             char *toNick; // the nick that the message is going to
             toNick = strtok(buf, " ");
@@ -459,6 +558,62 @@ int main(int argc, char const *argv[])
             }
             int correctMessageFormat = 0;
 
+            if (strcmp(toNick, "BLOCK") == 0)
+            {
+                char *nick1;
+                char *word = strtok(theMessage, " ");
+
+                // if word is null or empty string or space print error
+                if (word == NULL || strlen(word) == 0 || strcmp(word, " ") == 0)
+                {
+                    printf("Who do you want to Block?\n");
+                    free(theMessage);
+                    continue;
+                }
+
+                nick1 = strdup(word);
+                if (strtok(NULL, " ") != NULL)
+                {
+                    printf("wrong format\n");
+                    continue;
+                }
+
+                else
+                {
+                    blockFormat = 1;
+                    add_blocked_nickname(nick1);
+                    free(nick1);
+                }
+            }
+
+            if (strcmp(toNick, "UNBLOCK") == 0)
+            {
+                char *nick1;
+                char *word = strtok(theMessage, " ");
+
+                // if word is null or empty string or space print error
+                if (word == NULL || strlen(word) == 0 || strcmp(word, " ") == 0)
+                {
+                    printf("Who do you want to UnBlock?\n");
+                    free(theMessage);
+                    continue;
+                }
+
+                nick1 = strdup(word);
+                if (strtok(NULL, " ") != NULL)
+                {
+                    printf("wrong format\n");
+                    continue;
+                }
+
+                else
+                {
+                    blockFormat = 1;
+                    remove_blocked_nickname(nick1);
+                    free(nick1);
+                }
+            }
+
             // check if the message is correct format
             int l2 = strlen(toNick);
             if (toNick != NULL && toNick[0] == '@' && strlen(toNick) > 1)
@@ -471,7 +626,6 @@ int main(int argc, char const *argv[])
                     {
                         printf("Nickname can not contain special characters\n");
                         correctMessageFormat = 1;
-                        //free(theMessage);
                         break;
                     }
                 }
@@ -481,11 +635,13 @@ int main(int argc, char const *argv[])
                     nickToMess = strdup(toNick + 1);
                 }
             }
+
             // if length of themessage is 0, set format to 0 (bug fix)
             if (strlen(theMessage) == 0)
             {
                 correctMessageFormat = 0;
             }
+            // if nick contains num
             if (correctMessageFormat == 1)
             {
                 // function from above to check nick if its allowed to send message
@@ -494,6 +650,7 @@ int main(int argc, char const *argv[])
                     // function from above to check if client is in the linklist, if not we cant send message to the Nick
                     if (isClientInList(nickToMess) == 0)
                     {
+                        // check if nick contains special characters
                         srand(time(0)); // will not give random number if not calling on srand()
                         int number = rand() % 100;
                         sprintf(send_message, "PKT %d LOOKUP %s", number, nickToMess);
@@ -556,9 +713,19 @@ int main(int argc, char const *argv[])
                             srand(time(0)); // will not give random number if not calling on srand()
                             int number = rand() % 100;
                             sprintf(send_message, "PKT %d FROM %s TO %s MSG %s", number, nick, nickname, theMessage);
-                            send_packet(sockfd, send_message, strlen(send_message) + 1, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
-                            free(theMessage);
-                            free(nickToMess);
+                            // if nick is in blocked_nickname list, we dont send the message
+                            if (is_blocked(nickname) == 0)
+                            {
+                                send_packet(sockfd, send_message, strlen(send_message) + 1, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
+                                free(nickToMess);
+                                free(theMessage);
+                            }
+                            else
+                            {
+                                printf("%s is blocked\n", nickname);
+                                free(nickToMess);
+                                free(theMessage);
+                            }
                         }
                     }
                     else
@@ -578,10 +745,21 @@ int main(int argc, char const *argv[])
                                 srand(time(0)); // will not give random number if not calling on srand()
                                 int number = rand() % 100;
                                 sprintf(send_message, "PKT %d FROM %s TO %s MSG %s", number, nick, nickToMess, theMessage);
-                                free(theMessage);
-                                free(nickToMess);
-                                send_packet(sockfd, send_message, strlen(send_message) + 1, 0, (struct sockaddr *)currentClient->address, sizeof(*currentClient->address));
-                                break;
+                                if (is_blocked(nickToMess) == 0)
+                                {
+                                    send_packet(sockfd, send_message, strlen(send_message) + 1, 0, (struct sockaddr *)currentClient->address, sizeof(*currentClient->address));
+                                    free(nickToMess);
+                                    free(theMessage);
+                                    break;
+                                }
+                                else
+                                {
+                                    printf("%s is blocked\n", nickToMess);
+                                    free(nickToMess);
+                                    free(theMessage);
+                                    break;
+
+                                }
                             }
                             currentClient = currentClient->next;
                         }
@@ -598,16 +776,22 @@ int main(int argc, char const *argv[])
             }
             else
             {
-
-                free(theMessage);
-                free(nickToMess);
-                printf("Wrong..!\n");
+                if (blockFormat = 0)
+                {
+                    free(theMessage);
+                    free(nickToMess);
+                    printf("Wrong..!\n");
+                }
+                else
+                {
+                    free(theMessage);
+                    free(nickToMess);
+                }
             }
         }
     }
 }
 
-//if user press CTRL+C, we close the program
 #pragma gcc diagnostic push
 #pragma gcc diagnostic ignored "-Wunused-parameter"
 void handle_exit(int signal)
@@ -626,6 +810,17 @@ void handle_exit(int signal)
             free(tRem->nick);
             free(tRem->address);
             free(tRem);
+        }
+    }
+    if (blockHead != NULL)
+    {
+        blocked_nickname *r = blockHead;
+        while (r != NULL)
+        {
+            blocked_nickname *rem = r;
+            r = r->next;
+            free(rem->nick);
+            free(rem);
         }
     }
     close(sockfd);
