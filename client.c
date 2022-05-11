@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <time.h>
+#include <signal.h>
 #include <ctype.h>
 
 #include "send_packet.h"
@@ -17,6 +18,8 @@
 #define PORT "3490"
 #define MAXDATASIZE 1400 // max number of bytes we can get at once
 // to make more client to be able to connect to the server at once we need to use a queue to store the client socket
+void handle_exit(int signal);
+static int sockfd = 0;
 
 // make random  port number bewtween 1024 and 65535 in char
 // a tought using this but i found out that putting in 0 will make the port a random port
@@ -151,9 +154,9 @@ int isClientInList(char *nick)
 
 int main(int argc, char const *argv[])
 {
-    // reserved variables
+    signal(SIGINT, handle_exit);
     char nick[20];
-    int sockfd, numbytes;
+    int numbytes;
     char buf[MAXDATASIZE];
     char send_message[MAXDATASIZE];
     struct addrinfo fri, *servinfo, *p, *clientinfo;
@@ -411,7 +414,7 @@ int main(int argc, char const *argv[])
                 {
                     client *remove = head;
                     while (remove != NULL)
-                    {   
+                    {
                         client *tRem = remove;
                         remove = remove->next;
                         free(tRem->nick);
@@ -429,6 +432,7 @@ int main(int argc, char const *argv[])
             if (strlen(buf) == 0)
             {
                 printf("Not allowed with empty message\n");
+                free(nickToMess);
                 continue;
             }
             // if buf length is too long print error
@@ -467,7 +471,7 @@ int main(int argc, char const *argv[])
                     {
                         printf("Nickname can not contain special characters\n");
                         correctMessageFormat = 1;
-                        free(theMessage);
+                        //free(theMessage);
                         break;
                     }
                 }
@@ -504,6 +508,8 @@ int main(int argc, char const *argv[])
                         if (strstr(buf, "NOT FOUND") != NULL)
                         {
                             printf("%s is not in server\n", nickToMess);
+                            free(nickToMess);
+                            free(theMessage);
                         }
                         else
                         {
@@ -599,4 +605,29 @@ int main(int argc, char const *argv[])
             }
         }
     }
+}
+
+//if user press CTRL+C, we close the program
+#pragma gcc diagnostic push
+#pragma gcc diagnostic ignored "-Wunused-parameter"
+void handle_exit(int signal)
+{
+#pragma gcc diagnostic pop
+    if (sockfd != 0)
+        close(sockfd);
+    // when cloing we have to remove the clients from the list and free the memory.
+    if (head != NULL)
+    {
+        client *remove = head;
+        while (remove != NULL)
+        {
+            client *tRem = remove;
+            remove = remove->next;
+            free(tRem->nick);
+            free(tRem->address);
+            free(tRem);
+        }
+    }
+    close(sockfd);
+    exit(EXIT_SUCCESS);
 }

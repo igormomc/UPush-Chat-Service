@@ -35,6 +35,7 @@ static int sockfd = 0;
 
 int main(int argc, char const *argv[])
 {
+    // Set signal handler for SIGINT
     signal(SIGINT, handle_exit);
     int rc;
     struct addrinfo fri, *servinfo, *p;
@@ -322,6 +323,7 @@ int main(int argc, char const *argv[])
     return EXIT_SUCCESS;
 }
 
+//if user press CTRL+C, we close the program and free the memory
 #pragma gcc diagnostic push
 #pragma gcc diagnostic ignored "-Wunused-parameter"
 void handle_exit(int signal) {
