@@ -29,6 +29,13 @@ typedef struct blocked_nickname
 
 struct blocked_nickname *blockHead = NULL;
 
+// Signal handler for SIGALRM
+void handle_alarm(int signal)
+{
+    printf("\nTimeout. ACK not received in time!\n");
+    exit(0);
+}
+
 // make random  port number bewtween 1024 and 65535 in char
 // a tought using this but i found out that putting in 0 will make the port a random port
 char *make_random_port()
@@ -320,11 +327,10 @@ int main(int argc, char const *argv[])
     }
 
     // if timeout is not between 1 and 60, print error message and exit
-    if (timeout < 1 || timeout > 60)
-    {
-        printf("Timeout must be between 1 and 60\n");
-        return EXIT_SUCCESS;
-    }
+    //if (timeout < 1 || timeout > 60)
+    //{   printf("Timeout must be between 1 and 60\n");
+    //    return EXIT_SUCCESS;
+    //}
 
     srand48(time(0)); // have to call strand48 before using drand48, otherwise it will always return wrong, read it in mane pages
     // setting loss_probability
@@ -360,12 +366,17 @@ int main(int argc, char const *argv[])
     // making reg message and send it to the server
     sprintf(send_message, "PKT %d REG %s", number, argv[1]);
     send_packet(sockfd, send_message, strlen(send_message), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    signal(SIGALRM, handle_alarm); // set the timeout handler
+    alarm(timeout); // set the timeout
     // Receive the message from the server
     if ((numbytes = recvfrom(sockfd, buf, MAXDATASIZE, 0, NULL, NULL)) == -1)
     {
         perror("recvfrom");
         exit(1);
     }
+    alarm(0); // cancel the timeout
+    signal(SIGALRM, SIG_DFL); // cancel the timeout handler
+
     // free(send_message);
     //  set timeout for recvfrom
     struct timeval tv;
@@ -444,6 +455,8 @@ int main(int argc, char const *argv[])
         {
             rc = recvfrom(sockfd, buf, MAXDATASIZE, 0, (struct sockaddr *)&client_addr, &client_addr_len);
             buf[rc] = '\0';
+
+                printf("BLABLABLA: %s\n", buf);
             // Correct Format: "PKT nummer FROM fra_nick TO til_nick MSG tekst"
             char *wordForWord[8];
             int i = 0;
@@ -645,7 +658,7 @@ int main(int argc, char const *argv[])
             if (correctMessageFormat == 1)
             {
                 // function from above to check nick if its allowed to send message
-                if (isCorrectNickFormat(nickToMess) == 1)
+                if (isCorrectNickFormat(nickToMess) == 1 && blockFormat == 0)
                 {
                     // function from above to check if client is in the linklist, if not we cant send message to the Nick
                     if (isClientInList(nickToMess) == 0)

@@ -35,7 +35,6 @@ static int sockfd = 0;
 
 int main(int argc, char const *argv[])
 {
-    // Set signal handler for SIGINT
     signal(SIGINT, handle_exit);
     int rc;
     struct addrinfo fri, *servinfo, *p;
@@ -133,7 +132,6 @@ int main(int argc, char const *argv[])
             // if the client is not registered for more than 30 seconds, remove it from the list
             if (diff > 30)
             {
-                printf("%s has been removed, Longer then 30 sec since Registration\n", current->nick);
                 struct client *temp = current;
                 current = current->next;
                 if (temp == head)
@@ -148,9 +146,7 @@ int main(int argc, char const *argv[])
                         previous = previous->next;
                     }
                     previous->next = current;
-                }
-                // free the memory allocated for the temp client, because it is not needed anymore
-                
+                }                
                 free(temp);
             }
             else
@@ -323,7 +319,6 @@ int main(int argc, char const *argv[])
     return EXIT_SUCCESS;
 }
 
-//if user press CTRL+C, we close the program and free the memory
 #pragma gcc diagnostic push
 #pragma gcc diagnostic ignored "-Wunused-parameter"
 void handle_exit(int signal) {
