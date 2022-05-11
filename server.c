@@ -7,8 +7,11 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include "send_packet.c"
+#include <signal.h>
+#include "send_packet.h"
 #define BUF_SIZE 1460
+
+void handle_exit(int signal);
 
 void check_error(int result, char *message)
 {
@@ -27,12 +30,13 @@ typedef struct client
     struct client *next;             // pointer to the next client
 } client;
 
-client *head = NULL;
+static client *head = NULL;
+static int sockfd = 0;
 
 int main(int argc, char const *argv[])
 {
+    signal(SIGINT, handle_exit);
     int rc;
-    int sockfd;
     struct addrinfo fri, *servinfo, *p;
     fd_set fds;
     struct timeval timeout;
@@ -109,10 +113,14 @@ int main(int argc, char const *argv[])
         FD_SET(sockfd, &fds);
         FD_SET(STDIN_FILENO, &fds);
         rc = select(FD_SETSIZE, &fds, NULL, NULL, &timeout);
-        check_error(rc, "select");
-
-       
-
+        //fix SIGINT signal
+        if (rc < 0)
+        {
+            perror("select");
+            exit(EXIT_FAILURE);
+        }
+            
+        
 
         struct client *current = head;
         while (current != NULL)
@@ -120,14 +128,11 @@ int main(int argc, char const *argv[])
             //print out diff from current time to the timestamp of the client
             gettimeofday(&current_time, NULL);
             long diff = current_time.tv_sec - current->timestamp.tv_sec;
-            printf("%s is %ld seconds old\n", current->nick, diff);
 
             // if the client is not registered for more than 30 seconds, remove it from the list
             if (diff > 30)
             {
                 printf("%s has been removed, Longer then 30 sec since Registration\n", current->nick);
-                printf("Client %s is not registered for more than 30 seconds, removing from list\n", current->nick);
-
                 struct client *temp = current;
                 current = current->next;
                 if (temp == head)
@@ -143,8 +148,9 @@ int main(int argc, char const *argv[])
                     }
                     previous->next = current;
                 }
+                // free the memory allocated for the temp client, because it is not needed anymore
+                
                 free(temp);
-
             }
             else
             {
@@ -184,10 +190,9 @@ int main(int argc, char const *argv[])
                     struct client *currentcheck = head;
                     while (currentcheck != NULL)
                     {
-                        if (strcmp(currentcheck->nick, nick) == 0)
-                        {
-                            // remove nick from list
-                            printf("%sremoved\n", nick);
+                       //Check if nickname exists in linked list and //Remove the foundClient from the linked list 
+                          if (strcmp(currentcheck->nick, nick) == 0)
+                          {
                             struct client *temp = currentcheck;
                             currentcheck = currentcheck->next;
                             if (temp == head)
@@ -203,39 +208,32 @@ int main(int argc, char const *argv[])
                                 }
                                 previous->next = currentcheck;
                             }
+                            // free the memory allocated for the temp client, because it is not needed anymore
                             free(temp);
-                            
-                        }
-                        else
-                        {
-                            currentcheck = currentcheck->next;
-                        }
+                            break;
+                            }
+                            else
+                            {
+                                currentcheck = currentcheck->next;
+                            }
                     }
-
+                    
                     client *new_client = malloc(sizeof(client));
                     new_client->next = head;
                     head = new_client;
                     new_client->address = client_addr;
                     gettimeofday(&new_client->timestamp, NULL); // dont know if this is needed
                     strcpy(new_client->nick, nick);
-                    printf("Client %s registered\n", nick);
+                    head = new_client;
 
-                    // show all  clients
-                    client *current = head;
-                    printf("here is the list of clients\n");
-                    while (current != NULL)
-                    {
-                        printf("%s\n", current->nick);
-                        current = current->next;
-                    }
-
+                
                     // make char variable for nick + packet
                     char ack[8 + strlen(pkt)];
                     strcpy(ack, "ACK ");
                     strcat(ack, pkt);
                     strcat(ack, " OK");
-
                     send_packet(sockfd, ack, strlen(ack) + 1, 0, (struct sockaddr *)&client_addr, client_addr_len); // send ack
+                    free(nick);
                     printf("ACK sent\n");
                 }
                 if (strcmp(split, "LOOKUP") == 0)
@@ -278,6 +276,7 @@ int main(int argc, char const *argv[])
                             strcat(ack, " PORT ");
                             strcat(ack, port);
                             send_packet(sockfd, ack, strlen(ack) + 1, 0, (struct sockaddr *)&client_addr, client_addr_len);
+                            free(nick);
                             printf("ACK sent\n");
                             break;
                         }
@@ -291,6 +290,7 @@ int main(int argc, char const *argv[])
                         strcpy(ack, pkt);
                         strcat(ack, " NOT FOUND");
                         send_packet(sockfd, ack, strlen(ack) + 1, 0, (struct sockaddr *)&client_addr, client_addr_len);
+                        free(nick);
                     }
                 }
             }
@@ -300,7 +300,7 @@ int main(int argc, char const *argv[])
             // if server types in q then exit
             if (fgets(buf, BUF_SIZE, stdin) != NULL)
             {
-                if (strcmp(buf, "q\n") == 0)
+                if (strcmp(buf, "QUIT\n") == 0)
                 {
                     printf("Exiting The server, Good bye!\n");
                     exit(0);
@@ -309,5 +309,34 @@ int main(int argc, char const *argv[])
         }
     }
     close(sockfd);
+    //when cloing we have to remove the clients from the list and free the memory.
+    client *remove = head;
+    while (remove != NULL)
+    {
+        client *tRem = remove;
+        remove = remove->next;
+        free(tRem);
+    }
+
+    //free nick
     return EXIT_SUCCESS;
+}
+
+#pragma gcc diagnostic push
+#pragma gcc diagnostic ignored "-Wunused-parameter"
+void handle_exit(int signal) {
+#pragma gcc diagnostic pop
+    if (sockfd != 0)
+        close(sockfd);
+    //when cloing we have to remove the clients from the list and free the memory.
+    if (head != NULL) {
+        client *remove = head;
+        while (remove != NULL)
+        {
+            client *tRem = remove;
+            remove = remove->next;
+            free(tRem);
+        }
+    }
+    exit(EXIT_SUCCESS);
 }
