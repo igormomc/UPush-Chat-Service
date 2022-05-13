@@ -109,6 +109,7 @@ int isCorrectNickFormat(char *nick)
     // can only consist of ASCII characters and spaces, tabs, newlines, and carriage returns
     for (int i = 0; i < (int)strlen(nick); i++)
     {
+        // if the character is not an ASCII character or a space, tab, newline, or carriage return
         if (!((nick[i] >= 'a' && nick[i] <= 'z') || (nick[i] >= 'A' && nick[i] <= 'Z') || (nick[i] >= '0' && nick[i] <= '9')) || (nick[i] == ' ' || nick[i] == '\t' || nick[i] == '\n' || nick[i] == '\r'))
         {
             correct = 0;
@@ -152,6 +153,7 @@ void add_client_to_list(char *nick, struct sockaddr_storage *addr_storage)
 // add nick to linkedlist of blocked nicknames
 void add_blocked_nickname(char *nick)
 {
+    // removing the nick from the blocked list if it is there from before, and then adding it to the blocked list again to make sure there is no duplicates
     remove_blocked_nickname(nick);
     blocked_nickname *blockNick = malloc(sizeof(blocked_nickname));
     blockNick->nick = malloc((strlen(nick) + 1) * sizeof(char));
@@ -170,14 +172,6 @@ void add_blocked_nickname(char *nick)
             current = current->next;
         }
         current->next = blockNick;
-    }
-    // remove if nick is already in the list
-    // print out the blocked nicknames
-    blocked_nickname *current = blockHead;
-    while (current != NULL)
-    {
-        printf("%s\n", current->nick);
-        current = current->next;
     }
 }
 
@@ -296,11 +290,10 @@ int main(int argc, char const *argv[])
 
     if ((rv = getaddrinfo(NULL, "0", &fri, &servinfo)) != 0)
     {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        fprintf(stderr, "getaddrinfoERROR: %s\n", gai_strerror(rv));
         return 1;
     }
 
-    // loop through all the results and connect to the first we can
     for (p = servinfo; p != NULL; p = p->ai_next)
     {
         if ((sockfd = socket(p->ai_family, p->ai_socktype,
@@ -327,7 +320,7 @@ int main(int argc, char const *argv[])
     }
 
     // if timeout is not between 1 and 60, print error message and exit
-    //if (timeout < 1 || timeout > 60)
+    // if (timeout < 1 || timeout > 60)
     //{   printf("Timeout must be between 1 and 60\n");
     //    return EXIT_SUCCESS;
     //}
@@ -346,7 +339,7 @@ int main(int argc, char const *argv[])
     // get the address info of the server
     if ((rv = getaddrinfo(argv[2], argv[3], &fri, &servinfo)) != 0)
     {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        fprintf(stderr, "getaddrinfoERROR: %s\n", gai_strerror(rv));
         return EXIT_FAILURE;
     }
 
@@ -367,14 +360,14 @@ int main(int argc, char const *argv[])
     sprintf(send_message, "PKT %d REG %s", number, argv[1]);
     send_packet(sockfd, send_message, strlen(send_message), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
     signal(SIGALRM, handle_alarm); // set the timeout handler
-    alarm(timeout); // set the timeout
+    alarm(timeout);                // set the timeout
     // Receive the message from the server
     if ((numbytes = recvfrom(sockfd, buf, MAXDATASIZE, 0, NULL, NULL)) == -1)
     {
-        perror("recvfrom");
+        perror("recvfromERROR");
         exit(1);
     }
-    alarm(0); // cancel the timeout
+    alarm(0);                 // cancel the timeout
     signal(SIGALRM, SIG_DFL); // cancel the timeout handler
 
     // free(send_message);
@@ -403,7 +396,7 @@ int main(int argc, char const *argv[])
         selectReturn = select(FD_SETSIZE, &readfds, NULL, NULL, &heartbeat);
 
         if (selectReturn == 0)
-        {            
+        {
             srand(time(0)); // will not give random number if not calling on srand()
             int number = rand() % 100;
 
@@ -412,11 +405,7 @@ int main(int argc, char const *argv[])
             send_packet(sockfd, send_message, strlen(send_message), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
             // Receive the message from the server
 
-            if ((numbytes = recvfrom(sockfd, buf, MAXDATASIZE, 0, NULL, NULL)) == -1)
-            {
-                perror("recvfrom");
-                exit(1);
-            }
+            numbytes = recvfrom(sockfd, buf, MAXDATASIZE, 0, NULL, NULL);
             // set timeout for recvfrom
             struct timeval tv;
             tv.tv_sec = timeout;
@@ -452,16 +441,20 @@ int main(int argc, char const *argv[])
                 // check if to_nick is the same as the client's nick
                 if (strcmp(wordForWord[5], nick) == 0)
                 {
-                    sprintf(send_message, "PKT %d ACK %s", atoi(wordForWord[1]), wordForWord[3]);
+                    // make send_message "ACK number OK"
+                    sprintf(send_message, "ACK 0 OK");
                     send_packet(sockfd, send_message, strlen(send_message), 0, (struct sockaddr *)&client_addr, client_addr_len);
-                    //if user have blocked you dont get the message
-                    if(is_blocked(wordForWord[3]) == 0){
+                    // if user have blocked you dont get the message
+                    if (is_blocked(wordForWord[3]) == 0)
+                    {
                         printf("%s: %s\n", wordForWord[3], wordForWord[7]);
                     }
                 }
                 else
                 {
                     printf("Wrong Format!");
+                    sprintf(send_message, "ACK 0 WRONG FORMAT");
+                    send_packet(sockfd, send_message, strlen(send_message), 0, (struct sockaddr *)&client_addr, client_addr_len);
                 }
             }
         }
@@ -532,7 +525,8 @@ int main(int argc, char const *argv[])
             char *toNick; // the nick that the message is going to
             toNick = strtok(buf, " ");
             char *theMessageCopy = strtok(NULL, "\0");
-            char *theMessage = strtok(NULL, "\0");; // the message
+            char *theMessage = strtok(NULL, "\0");
+            ; // the message
             if (theMessageCopy != NULL)
             {
                 theMessage = strdup(theMessageCopy);
@@ -547,7 +541,7 @@ int main(int argc, char const *argv[])
             if (strcmp(toNick, "BLOCK") == 0)
             {
                 char *nick1;
-                char *word = strtok(theMessage, "\0"); //maybe \0 in there
+                char *word = strtok(theMessage, "\0"); // maybe \0 in there
 
                 // if word is null or empty string or space print error
                 if (word == NULL || strlen(word) == 0 || strcmp(word, " ") == 0)
@@ -648,11 +642,9 @@ int main(int argc, char const *argv[])
                         memset(buf, 0, MAXDATASIZE);
                         int numbytes = recvfrom(sockfd, buf, MAXDATASIZE - 1, 0, NULL, NULL);
                         buf[numbytes] = '\0';
-                        //printf("%s\n", buf);
                         // If response has "NOT FOUND" in it, then the client isn't registered on the server
-                        if (strstr(buf, "NOT FOUND") != NULL)
+                        if (numbytes < 1 || strstr(buf, "NOT FOUND") != NULL)
                         {
-                            printf("%s is not in server\n", nickToMess);
                             free(nickToMess);
                             free(theMessage);
                         }
@@ -746,7 +738,6 @@ int main(int argc, char const *argv[])
                                     free(nickToMess);
                                     free(theMessage);
                                     break;
-
                                 }
                             }
                             currentClient = currentClient->next;

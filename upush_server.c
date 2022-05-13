@@ -62,7 +62,6 @@ int main(int argc, char const *argv[])
 
     if ((rc = getaddrinfo(NULL, argv[1], &fri, &servinfo)) != 0)
     { // argv[1] is the port
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rc));
         exit(EXIT_FAILURE);
     }
 
@@ -71,13 +70,13 @@ int main(int argc, char const *argv[])
     {
         if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
         {
-            perror("socket");
+            perror("socketERROR");
             continue;
         }
         if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1)
         {
             close(sockfd);
-            perror("bind");
+            perror("bindERROR");
             continue;
         }
         break;
@@ -85,12 +84,12 @@ int main(int argc, char const *argv[])
 
     if (p == NULL)
     {
-        fprintf(stderr, "Failed to bind socket\n");
+        fprintf(stderr, "Could not bind to socket\n");
         exit(EXIT_FAILURE);
     }
     else
     {
-        printf("Server started on port %s\n", argv[1]);
+        printf("Server is working on port %s\n", argv[1]);
     }
 
     // Free the memory allocated by getaddrinfo
@@ -113,19 +112,17 @@ int main(int argc, char const *argv[])
         FD_SET(sockfd, &fds);
         FD_SET(STDIN_FILENO, &fds);
         rc = select(FD_SETSIZE, &fds, NULL, NULL, &timeout);
-        //fix SIGINT signal
+        // fix SIGINT signal
         if (rc < 0)
         {
-            perror("select");
+            perror("selectERROR");
             exit(EXIT_FAILURE);
         }
-            
-        
 
         struct client *current = head;
         while (current != NULL)
         {
-            //print out diff from current time to the timestamp of the client
+            // print out diff from current time to the timestamp of the client
             gettimeofday(&current_time, NULL);
             long diff = current_time.tv_sec - current->timestamp.tv_sec;
 
@@ -146,7 +143,7 @@ int main(int argc, char const *argv[])
                         previous = previous->next;
                     }
                     previous->next = current;
-                }                
+                }
                 free(temp);
             }
             else
@@ -187,9 +184,9 @@ int main(int argc, char const *argv[])
                     struct client *currentcheck = head;
                     while (currentcheck != NULL)
                     {
-                       //Check if nickname exists in linked list and //Remove the foundClient from the linked list 
-                          if (strcmp(currentcheck->nick, nick) == 0)
-                          {
+                        // Check if nickname exists in linked list and //Remove the foundClient from the linked list
+                        if (strcmp(currentcheck->nick, nick) == 0)
+                        {
                             struct client *temp = currentcheck;
                             currentcheck = currentcheck->next;
                             if (temp == head)
@@ -208,13 +205,13 @@ int main(int argc, char const *argv[])
                             // free the memory allocated for the temp client, because it is not needed anymore
                             free(temp);
                             break;
-                            }
-                            else
-                            {
-                                currentcheck = currentcheck->next;
-                            }
+                        }
+                        else
+                        {
+                            currentcheck = currentcheck->next;
+                        }
                     }
-                    
+
                     client *new_client = malloc(sizeof(client));
                     new_client->next = head;
                     head = new_client;
@@ -223,7 +220,6 @@ int main(int argc, char const *argv[])
                     strcpy(new_client->nick, nick);
                     head = new_client;
 
-                
                     // make char variable for nick + packet
                     char ack[8 + strlen(pkt)];
                     strcpy(ack, "ACK ");
@@ -306,7 +302,7 @@ int main(int argc, char const *argv[])
         }
     }
     close(sockfd);
-    //when cloing we have to remove the clients from the list and free the memory.
+    // when cloing we have to remove the clients from the list and free the memory.
     client *remove = head;
     while (remove != NULL)
     {
@@ -315,19 +311,21 @@ int main(int argc, char const *argv[])
         free(tRem);
     }
 
-    //free nick
+    // free nick
     return EXIT_SUCCESS;
 }
 
-//handling if user types in CTRL+C
+// handling if user types in CTRL+C
 #pragma gcc diagnostic push
 #pragma gcc diagnostic ignored "-Wunused-parameter"
-void handle_exit(int signal) {
+void handle_exit(int signal)
+{
 #pragma gcc diagnostic pop
     if (sockfd != 0)
         close(sockfd);
-    //when cloing we have to remove the clients from the list and free the memory.
-    if (head != NULL) {
+    // when cloing we have to remove the clients from the list and free the memory.
+    if (head != NULL)
+    {
         client *remove = head;
         while (remove != NULL)
         {
