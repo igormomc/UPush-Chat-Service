@@ -1,2 +1,2 @@
-# Hjemme eksamen IN2140: UPush Chat Service
+UPush Chat Service
 
